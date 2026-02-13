@@ -1,0 +1,17 @@
+{
+  "targets": [
+    {
+      "name": "Blood Bowl Second Season Edition Box Set",
+      "amazon_url": "https://www.amazon.com/Games-Workshop-Blood-Second-Season/dp/B08N5F5X91",
+      "ebay_query": "blood+bowl+second+season+edition+box+set"
+    },
+    {
+      "name": "Blood Bowl Third Season Edition Box Set",
+      "amazon_url": "https://www.amazon.com/Games-Workshop-Blood-Season-Complete/dp/B0FXY5X1BB",
+      "ebay_query": "Blood+bowl+third+season+box+set"
+    }
+  ]
+}
+
+
+
