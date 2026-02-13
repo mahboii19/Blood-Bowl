@@ -6,6 +6,8 @@ def main():
         print(f"{r['name']}:")
         print(f"  Amazon: {r['amazon_price']}")
         print(f"  eBay:   {r['ebay_price']}")
+        print(f"  GW:     {r['GW_price']}")
+        print(f"  MM:     {r['MM_price']}")
         print()
 
 if __name__ == "__main__":

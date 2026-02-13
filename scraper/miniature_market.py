@@ -7,17 +7,17 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_ebay_price(url: str):
+def fetch_miniature_market_price(url: str):
     """
-    Scrapes a specific eBay listing URL.
-    Returns a dict with price only.
+    Scrapes a specific Miniature Market product URL.
+    Returns the price as a string, or None if not found.
     """
 
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.raise_for_status()
     except Exception as e:
-        print(f"[EBAY ERROR] Failed to fetch {url}: {e}")
+        print(f"[MM ERROR] Failed to fetch {url}: {e}")
         return None
 
     soup = BeautifulSoup(r.text, "html.parser")
@@ -25,12 +25,9 @@ def fetch_ebay_price(url: str):
     # -------------------------
     # PRICE (your exact selector)
     # -------------------------
-    price_el = soup.select_one(".x-price-primary span.ux-textspans")
+    price_el = soup.select_one("span.price")
 
-    
     if not price_el:
         return None
 
     return price_el.get_text(strip=True)
-
-
