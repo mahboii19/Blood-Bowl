@@ -24,6 +24,7 @@ def fetch_GW_price(url: str):
     # Target the price span directly
     price_el = soup.select_one('span.mt-5.pt-5')
 
+    # If the price element is not found, price_el = None and if not None == True, so we return None
     if not price_el:
         return None
 
