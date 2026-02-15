@@ -30,4 +30,9 @@ def fetch_NK_price(url: str):
     if not price_el:
         return None
 
-    return price_el.get_text(strip=True)
+    # returns the actual price element within the tags, which is the text content of the span
+    price_element = price_el.get_text(strip=True)
+
+    # Removing the text "Our Price" to so that we only return the actual price
+    price = price_element.replace("Our Price", "").strip()
+    return price
