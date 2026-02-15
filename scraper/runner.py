@@ -3,7 +3,9 @@ from pathlib import Path
 from .amazon import fetch_amazon_price
 from .ebay import fetch_ebay_price
 from .GW import fetch_GW_price
+from .NK import fetch_NK_price
 from .miniature_market import fetch_miniature_market_price
+
 def load_targets():
     config_path = Path("config/Products.json")
     with config_path.open() as f:
@@ -30,12 +32,14 @@ def run_all():
         ebay_price   = safe_call(fetch_ebay_price,   item.get("ebay_query"))
         GW_price     = safe_call(fetch_GW_price,     item.get("GW_url"))
         MM_price = safe_call(fetch_miniature_market_price, item.get("MM_url"))
+        NK_price     = safe_call(fetch_NK_price,     item.get("NK_url"))
 
         results.append({
             "name": name,
             "amazon_price": amazon_price,
             "ebay_price": ebay_price,
             "GW_price": GW_price,
+            "NK_price": NK_price,
             "MM_price": MM_price
         })
 
