@@ -5,6 +5,7 @@ from .ebay import fetch_ebay_price
 from .GW import fetch_GW_price
 from .NK import fetch_NK_price
 from .miniature_market import fetch_miniature_market_price
+from .flipside_gaming import fetch_flipside_gaming_price
 
 def load_targets():
     config_path = Path("config/Products.json")
@@ -29,18 +30,19 @@ def run_all():
         name = item["name"]
 
         amazon_price = safe_call(fetch_amazon_price, item.get("amazon_url"))
-        ebay_price   = safe_call(fetch_ebay_price,   item.get("ebay_query"))
-        GW_price     = safe_call(fetch_GW_price,     item.get("GW_url"))
+        ebay_price = safe_call(fetch_ebay_price,   item.get("ebay_query"))
+        GW_price = safe_call(fetch_GW_price,     item.get("GW_url"))
         MM_price = safe_call(fetch_miniature_market_price, item.get("MM_url"))
-        NK_price     = safe_call(fetch_NK_price,     item.get("NK_url"))
-
+        NK_price = safe_call(fetch_NK_price,     item.get("NK_url"))
+        FP_price = safe_call(fetch_flipside_gaming_price, item.get("FP_url"))
         results.append({
             "name": name,
             "amazon_price": amazon_price,
             "ebay_price": ebay_price,
             "GW_price": GW_price,
             "NK_price": NK_price,
-            "MM_price": MM_price
+            "MM_price": MM_price,
+            "FP_price": FP_price
         })
 
     return results
