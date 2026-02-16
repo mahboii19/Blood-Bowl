@@ -9,6 +9,7 @@ def main():
         print(f"  GW:     {r['GW_price']}")
         print(f"  MM:     {r['MM_price']}")
         print(f"  NK:     {r['NK_price']}")
+        print(f"  FP:     {r['FP_price']}")
         print()
 
 if __name__ == "__main__":
