@@ -1,3 +1,4 @@
+from pathlib import Path
 from .amazon import fetch_amazon_price
 from .ebay import fetch_ebay_price
 from .GW import fetch_GW_price
@@ -8,12 +9,11 @@ from .db import add_price, connect, get_targets, init_db
 
 
 SCRAPER_MAP = {
-    "amazon": fetch_amazon_price,
-    "ebay": fetch_ebay_price,
-    "GW": fetch_GW_price,
-    "MM": fetch_miniature_market_price,
-    "NK": fetch_NK_price,
-    "FP": fetch_flipside_gaming_price,
+    "Amazon": fetch_amazon_price,
+    "Games Workshop": fetch_GW_price,
+    "Miniature Market": fetch_miniature_market_price,
+    "Noble Knight": fetch_NK_price,
+    "Flipside Gaming": fetch_flipside_gaming_price,
 }
 
 def safe_call(func, arg):
@@ -27,12 +27,20 @@ def safe_call(func, arg):
         return None
 
 def run_all():
-    conn = connect()
-    init_db(conn)
 
     # Resolve the path to config/targets.csv relative to the project root
     project_root = Path(__file__).resolve().parents[1]
-    csv_path = project_root / "config" / "targets.csv"
+
+    # Initialize the path and database object
+    db_path = project_root / "data" / "blood_bowl.sqlite3"
+    conn = connect(db_path)
+
+    # Creating DB file, will be set in project_root/data/blood_bowl.sqlite3
+    # -- creates file and tables if they don't exist
+    init_db(conn)
+
+    # Create csv_path relative to project root, pointing to Data/BB_Products_Tracker.csv
+    csv_path = project_root / "Data" / "BB_Products_Tracker.csv"
 
     targets = get_targets(conn, csv_path=str(csv_path))
     results = []
