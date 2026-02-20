@@ -1,5 +1,7 @@
 import csv
+import os
 import sqlite3
+import google.generativeai as genai
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +11,34 @@ from typing import Optional
 def get_default_db_path() -> Path:
     project_root = Path(__file__).resolve().parents[1]
     return project_root / "data" / "blood_bowl.sqlite3"
+
+
+def shorten_url_with_gemini(url: str) -> str:
+    """
+    Calls the Gemini API to distill a retail URL to its shortest, permanent version.
+    Uses GEMINI_BB_KEY -- set as environment variable.
+    """
+    api_key = os.environ.get("GEMINI_BB_KEY")
+    if not api_key:
+        # Fallback: Just strip query parameters if no API key is available
+        return url.split('?')[0].split('#')[0]
+
+    try:
+        genai.configure(api_key=api_key)
+        # Using flash 2.0 model for speed and cost-efficiency
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        prompt = (
+            f"Extract the essential, permanent product URL from this link. "
+            f"Remove all tracking, search, and session parameters (like ref, dib, qid). "
+            f"Return ONLY the clean URL string: {url}"
+        )
+        response = model.generate_content(prompt)
+        # Clean up any potential markdown or whitespace Gemini might return
+        cleaned_url = response.text.strip().replace("`", "")
+        return cleaned_url
+    except Exception as e:
+        print(f"[WARNING] Gemini URL shortening failed: {e}. Using basic cleanup.")
+        return url.split('?')[0].split('#')[0]
 
 
 # Opens an existing SQLite file at resolved_path, or creates it there if missing.
@@ -46,7 +76,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             source TEXT NOT NULL,
             price_text TEXT,
             scraped_at TEXT NOT NULL DEFAULT (date('now')),
-            FOREIGN KEY(target_id) REFERENCES targets(id)
+            FOREIGN KEY(target_id) REFERENCES targets(id),
+            UNIQUE(target_id, scraped_at)
         );
 
         -- Speeds up filtering targets by active status.
@@ -68,10 +99,9 @@ def upsert_target(
     retailer: str,
     retailer_url: str,
     active: int = 1,
-) -> int:
+) -> None:
     # Upsert = insert a new (product_name, source, retailer) target, or update retailer_url/active if it exists.
     # UNIQUE(product_name, source, retailer) prevents duplicates for the same product-source-retailer row.
-    # Returns the target id so callers can link related rows (e.g., prices.target_id).
     conn.execute(
         """
         INSERT INTO targets (product_name, source, retailer, retailer_url, active)
@@ -81,12 +111,7 @@ def upsert_target(
         """,
         (product_name, source, retailer, retailer_url, active),
     )
-    row = conn.execute(
-        "SELECT id FROM targets WHERE product_name = ? AND source = ? AND retailer = ?",
-        (product_name, source, retailer),
-    ).fetchone()
     conn.commit()
-    return int(row["id"])
 
 
 def add_price(
@@ -95,12 +120,14 @@ def add_price(
     source: str,
     price_text: Optional[str],
 ) -> None:
-    # Appends one price snapshot row for a target (does not update old rows).
+    # Appends one price snapshot row for a target per day (updates if already exists for today).
     # scraped_at is auto-filled by the table default date('now') if not provided.
     conn.execute(
         """
         INSERT INTO prices (target_id, source, price_text)
         VALUES (?, ?, ?)
+        ON CONFLICT(target_id, scraped_at)
+        DO UPDATE SET price_text=excluded.price_text
         """,
         (target_id, source, price_text),
     )
@@ -132,10 +159,13 @@ def import_targets_from_csv(conn: sqlite3.Connection, csv_path: str) -> int:
             product_name = row.get("Product", "").strip()
             source = row.get("Source", "").strip()
             retailer = row.get("Retailer", "").strip()
-            retailer_url = row.get("Retailer_URL", "").strip()
+            raw_url = row.get("Retailer_URL", "").strip()
 
-            if not all([product_name, source, retailer, retailer_url]):
+            if not all([product_name, source, retailer, raw_url]):
                 continue
+
+            # Shorten the URL via Gemini before comparison
+            retailer_url = shorten_url_with_gemini(raw_url)
 
             # 2. Only upsert if the record is new OR the URL has changed
             key = (product_name, source, retailer)
