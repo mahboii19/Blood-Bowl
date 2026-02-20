@@ -1,16 +1,7 @@
+import csv
 import sqlite3
 from pathlib import Path
 from typing import Optional
-
-
-SOURCE_ALIASES = {
-    "amazon": "amazon",
-    "ebay": "ebay",
-    "gw": "GW",
-    "mm": "MM",
-    "nk": "NK",
-    "fp": "FP",
-}
 
 
 # Returns only the default DB file path; it does not create folders/files.
@@ -116,63 +107,62 @@ def add_price(
     conn.commit()
 
 
-def prompt_and_upsert_targets(conn: sqlite3.Connection) -> int:
-    print("\nEnter target rows. Press Enter on product name to finish.")
-    print("Allowed source values: amazon, ebay, GW, MM, NK, FP\n")
+def import_targets_from_csv(conn: sqlite3.Connection, csv_path: str) -> int:
+    path = Path(csv_path)
+    if not path.exists():
+        print(f"CSV file not found: {csv_path}")
+        return 0
 
-    upserted = 0
-    while True:
-        product_name = input("product_name: ").strip()
-        if not product_name:
-            break
+    # 1. Fetch current active targets to avoid redundant writes
+    existing = conn.execute(
+        "SELECT product_name, source, retailer, retailer_url FROM targets"
+    ).fetchall()
+    
+    # Create a lookup map: {(name, source, retailer): url}
+    existing_map = {
+        (row["product_name"], row["source"], row["retailer"]): row["retailer_url"]
+        for row in existing
+    }
 
-        source_input = input("source: ").strip().lower()
-        source = SOURCE_ALIASES.get(source_input)
-        if not source:
-            print("Invalid source. Row skipped.\n")
-            continue
+    changes_made = 0
+    with open(path, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Map CSV fields ("Product", "Source", etc.) to DB variables
+            product_name = row.get("Product", "").strip()
+            source = row.get("Source", "").strip()
+            retailer = row.get("Retailer", "").strip()
+            retailer_url = row.get("Retailer_URL", "").strip()
 
-        retailer = input("retailer: ").strip()
-        if not retailer:
-            print("retailer is required. Row skipped.\n")
-            continue
+            if not all([product_name, source, retailer, retailer_url]):
+                continue
 
-        retailer_url = input("retailer_url: ").strip()
-        if not retailer_url:
-            print("retailer_url is required. Row skipped.\n")
-            continue
+            # 2. Only upsert if the record is new OR the URL has changed
+            key = (product_name, source, retailer)
+            if key in existing_map and existing_map[key] == retailer_url:
+                continue
 
-        active_input = input("active [1]: ").strip() or "1"
-        active = 1 if active_input not in {"0", "false", "False"} else 0
-
-        upsert_target(
-            conn=conn,
-            product_name=product_name,
-            source=source,
-            retailer=retailer,
-            retailer_url=retailer_url,
-            active=active,
-        )
-        upserted += 1
-        print("Saved.\n")
-
-    return upserted
+            upsert_target(
+                conn=conn,
+                product_name=product_name,
+                source=source,
+                retailer=retailer,
+                retailer_url=retailer_url,
+                active=1,
+            )
+            changes_made += 1
+    
+    return changes_made
 
 
 # fetchall() returns all rows from the SELECT result set.
 # Because connect() sets row_factory=sqlite3.Row, each row can be converted with dict(row),
 # producing a JSON-like Python structure: one dict per table row.
-def get_targets(conn: sqlite3.Connection, prompt_for_targets: bool = False) -> list[dict]:
-    if prompt_for_targets:
-        while True:
-            response = input("Add or update targets now? [y/N]: ").strip().lower()
-            if response in {"", "n", "no"}:
-                break
-            if response in {"y", "yes"}:
-                count = prompt_and_upsert_targets(conn)
-                print(f"Upserted {count} target row(s).\n")
-                break
-            print("Please enter y/yes or n/no.")
+def get_targets(conn: sqlite3.Connection, csv_path: Optional[str] = None) -> list[dict]:
+    if csv_path:
+        count = import_targets_from_csv(conn, csv_path)
+        if count > 0:
+            print(f"Imported/Updated {count} target(s) from {csv_path}")
 
     rows = conn.execute(
         """
