@@ -7,7 +7,7 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_miniature_market_price(url: str):
+def fetch_miniature_market_price(url: str, price_selector: str):
     """
     Scrapes a specific Miniature Market product URL.
     Returns the price as a string, or None if not found.
@@ -25,8 +25,9 @@ def fetch_miniature_market_price(url: str):
     # -------------------------
     # PRICE (your exact selector)
     # -------------------------
-    price_el = soup.select_one("span.price")
+    price_el = soup.select_one(price_selector)
 
+    # If the price element is not found, price_el = None and if not None == True, so we return None
     if not price_el:
         return None
 
