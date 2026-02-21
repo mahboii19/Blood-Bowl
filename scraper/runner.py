@@ -8,22 +8,22 @@ from .flipside_gaming import fetch_flipside_gaming_price
 from .db import add_price, connect, get_targets, init_db
 
 
-SCRAPER_MAP = {
-    "Amazon": fetch_amazon_price,
+SCRAPER_FUNCS = {
+    "MTGbiz": fetch_amazon_price,
     "Games Workshop": fetch_GW_price,
     "Miniature Market": fetch_miniature_market_price,
     "Noble Knight": fetch_NK_price,
     "Flipside Gaming": fetch_flipside_gaming_price,
 }
 
-def safe_call(func, arg):
+def safe_call(scraper_function, retailer_url, price_selector):
     """Run a scraper function safely. Return None on failure."""
-    if not arg:
+    if not retailer_url or not price_selector:
         return None
     try:
-        return func(arg)
+        return scraper_function(retailer_url, price_selector)
     except Exception as e:
-        print(f"[ERROR] {func.__name__} failed for arg={arg}: {e}")
+        print(f"[ERROR] {scraper_function.__name__} failed for retailer_url={retailer_url}, price_selector={price_selector}: {e}")
         return None
 
 def run_all():
@@ -52,23 +52,23 @@ def run_all():
 
     try:
         for item in targets:
-            source = item["source"]
-            scraper = SCRAPER_MAP.get(source)
-            if not scraper:
+            retailer = item["retailer"]
+            scraper_func = SCRAPER_FUNCS.get(retailer)
+            if not scraper_func:
                 continue
 
-            price = safe_call(scraper, item["retailer_url"])
+            price = safe_call(scraper_func, item["retailer_url"], item["price_selector"])
             add_price(
                 conn=conn,
                 target_id=item["id"],
-                source=source,
+                source=item["source"],
                 price_text=price,
             )
 
             results.append(
                 {
                     "Product": item["product_name"],
-                    "Source": source,
+                    "Source": item["source"],
                     "Retailer": item["retailer"],
                     "Price": price,
                 }
