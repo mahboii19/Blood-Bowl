@@ -65,6 +65,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             source TEXT NOT NULL,
             retailer TEXT NOT NULL,
             retailer_url TEXT NOT NULL,
+            price_selector TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
             UNIQUE(product_name, source, retailer)
         );
@@ -98,18 +99,19 @@ def upsert_target(
     source: str,
     retailer: str,
     retailer_url: str,
+    price_selector: str,
     active: int = 1,
 ) -> None:
     # Upsert = insert a new (product_name, source, retailer) target, or update retailer_url/active if it exists.
     # UNIQUE(product_name, source, retailer) prevents duplicates for the same product-source-retailer row.
     conn.execute(
         """
-        INSERT INTO targets (product_name, source, retailer, retailer_url, active)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO targets (product_name, source, retailer, retailer_url, price_selector, active)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(product_name, source, retailer)
-        DO UPDATE SET retailer_url=excluded.retailer_url, active=excluded.active
+        DO UPDATE SET retailer_url=excluded.retailer_url, price_selector=excluded.price_selector, active=excluded.active
         """,
-        (product_name, source, retailer, retailer_url, active),
+        (product_name, source, retailer, retailer_url, price_selector, active),
     )
     conn.commit()
 
@@ -153,24 +155,30 @@ def import_targets_from_csv(conn: sqlite3.Connection, csv_path: str) -> int:
 
     changes_made = 0
     with open(path, mode="r", encoding="utf-8") as f:
+        """ csv.DictReader() treats each value in the CSV as a string. """
         reader = csv.DictReader(f)
+
         for row in reader:
             # Map CSV fields ("Product", "Source", etc.) to DB variables
             product_name = row.get("Product", "").strip()
             source = row.get("Source", "").strip()
             retailer = row.get("Retailer", "").strip()
             raw_url = row.get("Retailer_URL", "").strip()
+            price_selector = row.get("Price_Selector", "").strip() 
 
-            if not all([product_name, source, retailer, raw_url]):
+            if not all([product_name, source, retailer, raw_url, price_selector]):
+                print(f"[DEBUG] Skipping row due to missing fields: {row}")
                 continue
 
             # Shorten the URL via Gemini before comparison
             retailer_url = shorten_url_with_gemini(raw_url)
 
             # 2. Only upsert if the record is new OR the URL has changed
+            # Normalize: strip trailing slashes for comparison
             key = (product_name, source, retailer)
             if key in existing_map and existing_map[key] == retailer_url:
                 continue
+
 
             upsert_target(
                 conn=conn,
@@ -178,6 +186,7 @@ def import_targets_from_csv(conn: sqlite3.Connection, csv_path: str) -> int:
                 source=source,
                 retailer=retailer,
                 retailer_url=retailer_url,
+                price_selector=price_selector,
                 active=1,
             )
             changes_made += 1
@@ -196,7 +205,7 @@ def get_targets(conn: sqlite3.Connection, csv_path: Optional[str] = None) -> lis
 
     rows = conn.execute(
         """
-        SELECT id, product_name, source, retailer, retailer_url
+        SELECT id, product_name, source, retailer, retailer_url, price_selector
         FROM targets
         WHERE active = 1
         ORDER BY product_name, source, retailer
