@@ -8,9 +8,9 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_amazon_price(url: str):
+def fetch_amazon_price(url: str, price_selector: str):
     r = requests.get(url, headers=HEADERS, timeout=10)
     soup = BeautifulSoup(r.text, "html.parser")
 
-    price = soup.select_one("#priceblock_ourprice, #priceblock_dealprice, span.a-price > span.a-offscreen")
+    price = soup.select_one(price_selector)
     return price.get_text(strip=True) if price else None
