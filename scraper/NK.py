@@ -7,7 +7,7 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_NK_price(url: str):
+def fetch_NK_price(url: str, price_selector: str):
     """
     Scrapes the price from a product page whose HTML contains:
         <span class="price">Our Price $130.95</span>
@@ -24,7 +24,7 @@ def fetch_NK_price(url: str):
     soup = BeautifulSoup(r.text, "html.parser")
 
     # The price is encoded as: <span class="price">Our Price $130.95</span>
-    price_el = soup.select_one("span.price")
+    price_el = soup.select_one(price_selector)
 
     # If the price element is not found, price_el = None and if not None == True, so we return None
     if not price_el:
