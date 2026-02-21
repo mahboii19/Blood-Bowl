@@ -7,7 +7,7 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_flipside_gaming_price(url: str):
+def fetch_flipside_gaming_price(url: str, price_selector: str):
     """
     Scrapes flipside gaming product URL contained in products.json config file.
     Returns the price as a string, or None if not found.
@@ -27,7 +27,8 @@ def fetch_flipside_gaming_price(url: str):
     # -------------------------
 
     # Targeting the price <div> directly
-    price_el = soup.select_one("div.t4s-product-price")
+    # ----- Check to see what soup.select_one returns if the selector is not found ----- #
+    price_el = soup.select_one(price_selector)
 
     # If the price element is not found, price_el = None and if not None == True, so we return None
     if not price_el:
