@@ -7,7 +7,7 @@ HEADERS = {
     "Connection": "keep-alive"
 }
 
-def fetch_GW_price(url: str):
+def fetch_GW_price(url: str, price_selector: str):
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.raise_for_status()
@@ -21,8 +21,8 @@ def fetch_GW_price(url: str):
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Target the price span directly
-    price_el = soup.select_one('span.mt-5.pt-5')
+    # Targeting the price span directly
+    price_el = soup.select_one(price_selector)
 
     # If the price element is not found, price_el = None and if not None == True, so we return None
     if not price_el:
