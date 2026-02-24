@@ -1,7 +1,7 @@
 import csv
 import os
 import sqlite3
-import google.generativeai as genai
+from google import genai
 from pathlib import Path
 from typing import Optional
 
@@ -23,18 +23,23 @@ def shorten_url_with_gemini(url: str) -> str:
         # Fallback: Just strip query parameters if no API key is available
         return url.split('?')[0].split('#')[0]
 
+    # Using Gemini 2.5 Flast lite for cost effective URL clearning
     try:
-        genai.configure(api_key=api_key)
-        # Using flash 2.0 model for speed and cost-efficiency
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        client = genai.Client(api_key=api_key)
         prompt = (
             f"Extract the essential, permanent product URL from this link. "
             f"Remove all tracking, search, and session parameters (like ref, dib, qid). "
             f"Return ONLY the clean URL string: {url}"
         )
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+        )
         # Clean up any potential markdown or whitespace Gemini might return
-        cleaned_url = response.text.strip().replace("`", "")
+        response_text = (response.text or "").strip()
+        cleaned_url = response_text.replace("`", "")
+        if not cleaned_url:
+            return url.split('?')[0].split('#')[0]
         return cleaned_url
     except Exception as e:
         print(f"[WARNING] Gemini URL shortening failed: {e}. Using basic cleanup.")
@@ -115,15 +120,34 @@ def upsert_target(
     )
     conn.commit()
 
-
+# - Appends one price snapshot row for a target per day (updates if already exists for today).
+# - scraped_at is auto-filled by the table default date('now') if not provided.
 def add_price(
     conn: sqlite3.Connection,
     target_id: int,
     source: str,
     price_text: Optional[str],
 ) -> None:
-    # Appends one price snapshot row for a target per day (updates if already exists for today).
-    # scraped_at is auto-filled by the table default date('now') if not provided.
+    resolved_price_text = price_text
+
+    # Check if the scraped price_text is empty, null, or "none" (case-insensitive). If so, fetch the last valid price_text for this target_id.
+    if (resolved_price_text is None) or (resolved_price_text.strip() == "") or (resolved_price_text.strip().lower() == "none"):
+        last_row = conn.execute(
+            """
+            SELECT price_text
+            FROM prices
+            WHERE target_id = ?
+              AND price_text IS NOT NULL
+              AND TRIM(price_text) <> ''
+              AND LOWER(TRIM(price_text)) <> 'none'
+            ORDER BY scraped_at DESC, id DESC
+            LIMIT 1
+            """,
+            (target_id,),
+        ).fetchone()
+        resolved_price_text = last_row["price_text"] if last_row else None
+
+    # If price_text is not empty/null/"none", price_text is updated with valid price.
     conn.execute(
         """
         INSERT INTO prices (target_id, source, price_text)
@@ -131,7 +155,7 @@ def add_price(
         ON CONFLICT(target_id, scraped_at)
         DO UPDATE SET price_text=excluded.price_text
         """,
-        (target_id, source, price_text),
+        (target_id, source, resolved_price_text),
     )
     conn.commit()
 
@@ -190,6 +214,7 @@ def import_targets_from_csv(conn: sqlite3.Connection, csv_path: str) -> int:
                 active=1,
             )
             changes_made += 1
+            print(f"{retailer} Updated\n.")
     
     return changes_made
 
